@@ -466,7 +466,7 @@ export default function CatalogPage() {
                   <label className="mb-2 block text-sm font-semibold text-slate-600">
                     Producto factura
                   </label>
-
+                    
                   <input
                     className="w-full rounded-xl border border-slate-300 bg-white p-4 text-slate-900 outline-none focus:border-black"
                     value={editInvoiceDescription}

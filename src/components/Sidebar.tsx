@@ -44,6 +44,13 @@ export default function Sidebar() {
         >
           Inventario
         </Link>
+
+        <Link
+            href="/reports/catalog-map"
+            className="block rounded-xl px-4 py-3 font-medium text-slate-200 hover:bg-slate-800"
+          >
+            Reporte catálogo
+          </Link>
       </nav>
     </aside>
   );

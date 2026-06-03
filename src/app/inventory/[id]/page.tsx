@@ -269,6 +269,7 @@ export default function InventoryDetailPage({
                     </tr>
                   );
                 })}
+                //
 
                 {movements.length === 0 && (
                   <tr>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import toast from "react-hot-toast";
 
@@ -31,6 +31,51 @@ export default function NewBatchPage() {
   const [results, setResults] = useState<Product[]>([]);
   const [items, setItems] = useState<BatchItem[]>([]);
   const [searching, setSearching] = useState(false);
+  const DRAFT_KEY = "secorsa_draft-batch";
+  
+  useEffect(() => {
+    const draft = localStorage.getItem(DRAFT_KEY);
+
+    if(!draft) return;
+
+    const confirmRestore = window.confirm 
+    (
+      "Hay un lote preguardo. ¿Deseas recuperarlo?"
+    )
+
+    if(!confirmRestore)
+    {
+      localStorage.removeItem(DRAFT_KEY);
+      return;
+    }
+    
+    try
+    {
+      const parsed = JSON.parse(draft);
+
+      if (parsed.type) setType(parsed.type);
+      if (parsed.clientProvider)
+        setClientProvider(parsed.clientProvider);
+      if (parsed.items)
+        setItems(parsed.items);
+    }catch{
+      localStorage.removeItem(DRAFT_KEY); 
+    }
+  },[]);
+
+  useEffect(() => {
+    if (!clientProvider.trim() && items.length === 0) return;
+
+    localStorage.setItem
+    (
+      DRAFT_KEY,
+      JSON.stringify({
+        type,
+        clientProvider,
+        items,
+      })
+    )
+  }, [type,clientProvider,items]);
 
   const searchProducts = async (value: string) => {
     setQuery(value);
@@ -145,18 +190,18 @@ export default function NewBatchPage() {
       return;
     }
 
-    // if (type === "sale") {
-    //   const insufficientStock = items.find(
-    //     (item) => Number(item.quantity) > Number(item.current_stock)
-    //   );
+      // if (type === "sale") {
+      //   const insufficientStock = items.find(
+      //     (item) => Number(item.quantity) > Number(item.current_stock)
+      //   );
 
-    //   if (insufficientStock) {
-    //     toast.error(
-    //       `Stock insuficiente para ${insufficientStock.sku}. Disponible: ${insufficientStock.current_stock}`
-    //     );
-    //     return;
-    //   }
-    // }
+      //   if (insufficientStock) {
+      //     toast.error(
+      //       `Stock insuficiente para ${insufficientStock.sku}. Disponible: ${insufficientStock.current_stock}`
+      //     );
+      //     return;
+      //   }
+      // }
 
     const { data: batch, error } = await supabase
       .from("batches")
@@ -211,6 +256,8 @@ export default function NewBatchPage() {
     }
 
     toast.success("Lote guardado y stock actualizado");
+
+    localStorage.removeItem(DRAFT_KEY);
 
     setClientProvider("");
     setItems([]);
