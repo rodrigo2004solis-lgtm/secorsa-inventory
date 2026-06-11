@@ -23,6 +23,15 @@ type BatchItem = {
   total: number;
 };
 
+type Product = {
+  id: string;
+  sku: string;
+  description: string;
+  invoice_description?: string | null;
+  keywords?: string | null;
+  stock?: number | null;
+};
+
 export default function BatchDetailPage({
   params,
 }: {
@@ -35,24 +44,30 @@ export default function BatchDetailPage({
   const [items, setItems] = useState<BatchItem[]>([]);
   const [deleting, setDeleting] = useState(false);
 
+  const [editMode, setEditMode] = useState(false);
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<Product[]>([]);
+  const [searching, setSearching] = useState(false);
+
+  const loadData = async () => {
+    const { data: batchData } = await supabase
+      .from("batches")
+      .select("*")
+      .eq("id", id)
+      .single();
+
+    setBatch(batchData);
+
+    const { data: itemsData } = await supabase
+      .from("batch_items")
+      .select("*")
+      .eq("batch_id", id)
+      .order("created_at", { ascending: false });
+
+    setItems(itemsData || []);
+  };
+
   useEffect(() => {
-    const loadData = async () => {
-      const { data: batchData } = await supabase
-        .from("batches")
-        .select("*")
-        .eq("id", id)
-        .single();
-
-      setBatch(batchData);
-
-      const { data: itemsData } = await supabase
-        .from("batch_items")
-        .select("*")
-        .eq("batch_id", id);
-
-      setItems(itemsData || []);
-    };
-
     loadData();
   }, [id]);
 
@@ -73,6 +88,94 @@ export default function BatchDetailPage({
     (acc, item) => acc + Number(item.total),
     0
   );
+
+  const searchProducts = async (value: string) => {
+    setQuery(value);
+
+    if (value.trim().length < 2) {
+      setResults([]);
+      return;
+    }
+
+    setSearching(true);
+
+    const { data, error } = await supabase
+      .from("products")
+      .select("*")
+      .or(
+        `sku.ilike.%${value}%,description.ilike.%${value}%,invoice_description.ilike.%${value}%,keywords.ilike.%${value}%`
+      )
+      .limit(10);
+
+    if (error) {
+      toast.error(error.message);
+      setSearching(false);
+      return;
+    }
+
+    setResults(data || []);
+    setSearching(false);
+  };
+
+  const addProductToBatch = async (product: Product) => {
+    const quantityInput = window.prompt("Cantidad:", "1");
+    if (!quantityInput) return;
+
+    const quantity = Number(quantityInput);
+    if (quantity <= 0 || Number.isNaN(quantity)) {
+      toast.error("Cantidad inválida");
+      return;
+    }
+
+    const priceInput = window.prompt("Precio unitario:", "0");
+    if (!priceInput) return;
+
+    const unitPrice = Number(priceInput);
+    if (unitPrice < 0 || Number.isNaN(unitPrice)) {
+      toast.error("Precio inválido");
+      return;
+    }
+
+    const total = quantity * unitPrice;
+
+    const { error: itemError } = await supabase.from("batch_items").insert({
+      batch_id: batch.id,
+      product_id: product.id,
+      sku: product.sku,
+      description: product.description,
+      quantity,
+      unit_price: unitPrice,
+      total,
+    });
+
+    if (itemError) {
+      toast.error(itemError.message);
+      return;
+    }
+
+    const currentStock = Number(product.stock || 0);
+
+    const newStock =
+      batch.type === "purchase"
+        ? currentStock + quantity
+        : currentStock - quantity;
+
+    const { error: stockError } = await supabase
+      .from("products")
+      .update({ stock: newStock })
+      .eq("id", product.id);
+
+    if (stockError) {
+      toast.error(stockError.message);
+      return;
+    }
+
+    toast.success("Producto agregado al lote y stock actualizado");
+
+    setQuery("");
+    setResults([]);
+    loadData();
+  };
 
   const exportToExcel = () => {
     const rows = items.map((item) => ({
@@ -129,9 +232,7 @@ export default function BatchDetailPage({
 
       const { error: stockError } = await supabase
         .from("products")
-        .update({
-          stock: revertedStock,
-        })
+        .update({ stock: revertedStock })
         .eq("id", item.product_id);
 
       if (stockError) {
@@ -173,13 +274,19 @@ export default function BatchDetailPage({
         <div className="flex items-center justify-between gap-4">
           <div>
             <h1 className="text-4xl font-bold">Detalle del lote</h1>
-
             <p className="mt-2 text-slate-600">
               Información completa del movimiento.
             </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
+            <button
+              onClick={() => setEditMode(!editMode)}
+              className="rounded-xl bg-blue-600 px-5 py-3 text-sm font-bold text-white hover:bg-blue-700"
+            >
+              {editMode ? "Cerrar edición" : "Editar lote"}
+            </button>
+
             <button
               onClick={exportToExcel}
               className="rounded-xl bg-black px-5 py-3 text-sm font-bold text-white hover:bg-slate-800"
@@ -207,10 +314,72 @@ export default function BatchDetailPage({
           </div>
         </div>
 
+        {editMode && (
+          <section className="relative rounded-2xl border border-blue-200 bg-white p-6 shadow-lg">
+            <h2 className="text-2xl font-semibold text-slate-800">
+              Agregar producto al lote existente
+            </h2>
+
+            <p className="mt-1 text-sm text-slate-500">
+              Busca por SKU, inventario, factura o palabras clave.
+            </p>
+
+            <input
+              className="mt-5 w-full rounded-xl border border-slate-300 bg-white p-5 text-lg font-medium outline-none focus:border-black"
+              placeholder="Buscar producto..."
+              value={query}
+              onChange={(e) => searchProducts(e.target.value)}
+            />
+
+            {searching && (
+              <div className="mt-3 text-sm font-semibold text-slate-500">
+                Buscando productos...
+              </div>
+            )}
+
+            {results.length > 0 && (
+              <div className="absolute left-6 right-6 z-20 mt-2 max-h-96 overflow-y-auto rounded-xl border border-slate-300 bg-white shadow-xl">
+                {results.map((product) => (
+                  <button
+                    key={product.id}
+                    onClick={() => addProductToBatch(product)}
+                    className="block w-full border-b border-slate-100 p-4 text-left hover:bg-slate-100"
+                  >
+                    <div className="flex items-center justify-between gap-4">
+                      <div>
+                        <p className="font-bold text-slate-900">
+                          {product.sku}
+                        </p>
+
+                        <p className="text-sm text-slate-700">
+                          Inventario: {product.description}
+                        </p>
+
+                        {product.invoice_description && (
+                          <p className="text-sm text-slate-500">
+                            Factura: {product.invoice_description}
+                          </p>
+                        )}
+
+                        <p className="mt-1 text-xs font-semibold text-blue-700">
+                          Stock actual: {Number(product.stock || 0)}
+                        </p>
+                      </div>
+
+                      <span className="rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white">
+                        Agregar
+                      </span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
+
         <section className="grid grid-cols-1 gap-6 md:grid-cols-4">
           <div className="rounded-2xl bg-white p-6 shadow-lg">
             <p className="text-sm text-slate-500">Cliente / Proveedor</p>
-
             <h2 className="mt-2 text-2xl font-bold">
               {batch.client_provider}
             </h2>
@@ -218,7 +387,6 @@ export default function BatchDetailPage({
 
           <div className="rounded-2xl bg-white p-6 shadow-lg">
             <p className="text-sm text-slate-500">Fecha</p>
-
             <h2 className="mt-2 text-xl font-bold">
               {new Date(batch.created_at).toLocaleString("es-MX")}
             </h2>
@@ -226,15 +394,11 @@ export default function BatchDetailPage({
 
           <div className="rounded-2xl bg-white p-6 shadow-lg">
             <p className="text-sm text-slate-500">Total unidades</p>
-
-            <h2 className="mt-2 text-3xl font-bold">
-              {totalUnits}
-            </h2>
+            <h2 className="mt-2 text-3xl font-bold">{totalUnits}</h2>
           </div>
 
           <div className="rounded-2xl bg-white p-6 shadow-lg">
             <p className="text-sm text-slate-500">Total importe</p>
-
             <h2 className="mt-2 text-3xl font-bold text-green-700">
               ${totalAmount.toFixed(2)}
             </h2>
@@ -266,17 +430,13 @@ export default function BatchDetailPage({
                 {items.map((item) => (
                   <tr key={item.id} className="border-b hover:bg-slate-50">
                     <td className="p-4 font-semibold">{item.sku}</td>
-
                     <td className="p-4">{item.description}</td>
-
                     <td className="p-4 text-center font-bold">
                       {item.quantity}
                     </td>
-
                     <td className="p-4 text-center">
                       ${Number(item.unit_price).toFixed(2)}
                     </td>
-
                     <td className="p-4 text-center font-bold text-green-700">
                       ${Number(item.total).toFixed(2)}
                     </td>
