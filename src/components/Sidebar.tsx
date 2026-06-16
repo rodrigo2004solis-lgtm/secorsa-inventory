@@ -51,6 +51,30 @@ export default function Sidebar() {
           >
             Reporte catálogo
           </Link>
+          <Link
+            href="/profit"
+            className="block rounded-xl px-4 py-3 font-medium text-slate-200 hover:bg-slate-800"
+          >
+            Utilidad
+          </Link>
+          <Link
+            href="/profit/dashboard"
+            className="block rounded-xl px-4 py-3 font-medium text-slate-200 hover:bg-slate-800"
+          >
+            Dashboard Utilidad
+          </Link>
+          <Link
+            href="/profit/history"
+            className="block rounded-xl px-4 py-3 font-medium text-slate-200 hover:bg-slate-800"
+          >
+            Historial Utilidad
+          </Link>
+          <Link
+            href="/profit/report"
+            className="block rounded-xl px-4 py-3 font-medium text-slate-200 hover:bg-slate-800"
+          >
+            Reporte PDF
+          </Link>
       </nav>
     </aside>
   );

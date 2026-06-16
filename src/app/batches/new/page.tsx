@@ -24,6 +24,8 @@ type BatchItem = {
   current_stock: number;
 };
 
+const DRAFT_KEY = "secorsa-draft-batch";
+
 export default function NewBatchPage() {
   const [type, setType] = useState<"purchase" | "sale">("sale");
   const [clientProvider, setClientProvider] = useState("");
@@ -31,51 +33,61 @@ export default function NewBatchPage() {
   const [results, setResults] = useState<Product[]>([]);
   const [items, setItems] = useState<BatchItem[]>([]);
   const [searching, setSearching] = useState(false);
-  const DRAFT_KEY = "secorsa_draft-batch";
-  
+  const [draftSaved, setDraftSaved] = useState(false);
+
   useEffect(() => {
     const draft = localStorage.getItem(DRAFT_KEY);
 
-    if(!draft) return;
+    if (!draft) return;
 
-    const confirmRestore = window.confirm 
-    (
-      "Hay un lote preguardo. ¿Deseas recuperarlo?"
-    )
+    const confirmRestore = window.confirm(
+      "Hay un lote preguardado. ¿Deseas recuperarlo?"
+    );
 
-    if(!confirmRestore)
-    {
+    if (!confirmRestore) {
       localStorage.removeItem(DRAFT_KEY);
       return;
     }
-    
-    try
-    {
+
+    try {
       const parsed = JSON.parse(draft);
 
       if (parsed.type) setType(parsed.type);
-      if (parsed.clientProvider)
-        setClientProvider(parsed.clientProvider);
-      if (parsed.items)
-        setItems(parsed.items);
-    }catch{
-      localStorage.removeItem(DRAFT_KEY); 
+      if (parsed.clientProvider) setClientProvider(parsed.clientProvider);
+      if (parsed.items) setItems(parsed.items);
+
+      toast.success("Borrador recuperado");
+    } catch {
+      localStorage.removeItem(DRAFT_KEY);
     }
-  },[]);
+  }, []);
 
   useEffect(() => {
     if (!clientProvider.trim() && items.length === 0) return;
 
-    localStorage.setItem
-    (
+    localStorage.setItem(
       DRAFT_KEY,
       JSON.stringify({
         type,
         clientProvider,
         items,
       })
-    )
-  }, [type,clientProvider,items]);
+    );
+
+    setDraftSaved(true);
+
+    const timer = setTimeout(() => {
+      setDraftSaved(false);
+    }, 2000);
+
+    return () => clearTimeout(timer);
+  }, [type, clientProvider, items]);
+
+  const refreshSearch = () => {
+    setQuery("");
+    setResults([]);
+    toast.success("Buscador actualizado");
+  };
 
   const searchProducts = async (value: string) => {
     setQuery(value);
@@ -190,19 +202,6 @@ export default function NewBatchPage() {
       return;
     }
 
-      // if (type === "sale") {
-      //   const insufficientStock = items.find(
-      //     (item) => Number(item.quantity) > Number(item.current_stock)
-      //   );
-
-      //   if (insufficientStock) {
-      //     toast.error(
-      //       `Stock insuficiente para ${insufficientStock.sku}. Disponible: ${insufficientStock.current_stock}`
-      //     );
-      //     return;
-      //   }
-      // }
-
     const { data: batch, error } = await supabase
       .from("batches")
       .insert({
@@ -263,17 +262,24 @@ export default function NewBatchPage() {
     setItems([]);
     setType("sale");
     setQuery("");
+    setResults([]);
   };
 
   return (
     <main className="min-h-screen bg-slate-100 p-8 text-slate-900">
       <div className="mx-auto max-w-7xl space-y-8">
-        <div>
-          <h1 className="text-4xl font-bold text-slate-900">Crear lote</h1>
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h1 className="text-4xl font-bold text-slate-900">Crear lote</h1>
 
-          <p className="mt-2 text-slate-600">
-            Captura compras o ventas con inventario automático.
-          </p>
+            <p className="mt-2 text-slate-600">
+              Captura compras o ventas con inventario automático.
+            </p>
+          </div>
+
+          <div className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow">
+            {draftSaved ? "🟢 Borrador guardado" : "Borrador automático activo"}
+          </div>
         </div>
 
         <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-lg">
@@ -315,7 +321,7 @@ export default function NewBatchPage() {
         </section>
 
         <section className="relative rounded-2xl border border-slate-200 bg-white p-6 shadow-lg">
-          <div className="mb-5 flex items-center justify-between">
+          <div className="mb-5 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
               <h2 className="text-2xl font-semibold text-slate-800">
                 Buscador dinámico
@@ -327,9 +333,12 @@ export default function NewBatchPage() {
               </p>
             </div>
 
-            <span className="rounded-full bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-700">
-              {query.length >= 2 ? `${results.length} resultado(s)` : "Listo"}
-            </span>
+            <button
+              onClick={refreshSearch}
+              className="rounded-xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+            >
+              Actualizar buscador
+            </button>
           </div>
 
           <input
@@ -348,7 +357,9 @@ export default function NewBatchPage() {
 
           {query.length >= 2 && !searching && results.length === 0 && (
             <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-700">
-              No se encontraron productos con esa búsqueda.
+              No se encontraron productos con esa búsqueda. Si acabas de agregar
+              productos al catálogo, presiona “Actualizar buscador” y vuelve a
+              escribir.
             </div>
           )}
 
