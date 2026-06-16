@@ -252,7 +252,7 @@ export default function ProfitDashboardPage() {
             </h2>
 
             <div className="overflow-x-auto rounded-xl border border-slate-300">
-              <table className="w-full min-w-[700px]">
+              <table className="w-full">
                 <thead>
                   <tr className="bg-slate-900 text-white">
                     <th className="p-4 text-left">Título</th>
@@ -310,7 +310,7 @@ export default function ProfitDashboardPage() {
             </h2>
 
             <div className="overflow-x-auto rounded-xl border border-slate-300">
-              <table className="w-full min-w-[700px]">
+              <table className="w-full">
                 <thead>
                   <tr className="bg-slate-900 text-white">
                     <th className="p-4 text-left">Título</th>
@@ -356,7 +356,7 @@ export default function ProfitDashboardPage() {
             </h2>
 
             <div className="overflow-x-auto rounded-xl border border-slate-300">
-              <table className="w-full min-w-[700px]">
+              <table className="w-full">
                 <thead>
                   <tr className="bg-slate-900 text-white">
                     <th className="p-4 text-left">SKU</th>
@@ -394,7 +394,7 @@ export default function ProfitDashboardPage() {
             </h2>
 
             <div className="overflow-x-auto rounded-xl border border-slate-300">
-              <table className="w-full min-w-[700px]">
+              <table className="w-full">
                 <thead>
                   <tr className="bg-slate-900 text-white">
                     <th className="p-4 text-left">SKU</th>

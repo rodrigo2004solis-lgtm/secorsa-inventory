@@ -59,7 +59,7 @@ export default function ProfitHistoryPage() {
 
         <section className="rounded-2xl bg-white p-6 shadow-lg">
           <div className="overflow-x-auto rounded-xl border border-slate-300">
-            <table className="w-full min-w-[1000px]">
+            <table className="w-full">
               <thead>
                 <tr className="bg-slate-900 text-white">
                   <th className="p-4 text-left">Título</th>
