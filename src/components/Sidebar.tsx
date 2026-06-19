@@ -75,6 +75,12 @@ export default function Sidebar() {
           >
             Reporte PDF
           </Link>
+         <Link
+          href="/inventory/count"
+          className="block rounded-xl px-4 py-3 font-medium text-slate-200 hover:bg-slate-800"
+        >
+          Conteo express
+        </Link>
       </nav>
     </aside>
   );
