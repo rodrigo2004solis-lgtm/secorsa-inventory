@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import * as XLSX from "xlsx";
 import toast from "react-hot-toast";
@@ -29,29 +29,15 @@ export default function ProfitPage() {
   const [endDate, setEndDate] = useState("");
   const [title, setTitle] = useState("");
 
-  const [products, setProducts] = useState<Product[]>([]);
   const [query, setQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<Product[]>([]);
+  const [searching, setSearching] = useState(false);
+
   const [items, setItems] = useState<ProfitItem[]>([]);
   const [draftSaved, setDraftSaved] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  const loadProducts = async () => {
-    const { data, error } = await supabase
-      .from("products")
-      .select("id, sku, description, invoice_description, keywords")
-      .order("sku", { ascending: true });
-
-    if (error) {
-      toast.error(error.message);
-      return;
-    }
-
-    setProducts(data || []);
-  };
-
   useEffect(() => {
-    loadProducts();
-
     const draft = localStorage.getItem(DRAFT_KEY);
 
     if (!draft) return;
@@ -101,22 +87,41 @@ export default function ProfitPage() {
     return () => clearTimeout(timer);
   }, [startDate, endDate, title, items]);
 
-  const filteredProducts = useMemo(() => {
-    const q = query.trim().toLowerCase();
+  const searchProducts = async (value: string) => {
+    const cleanValue = value.trim().toUpperCase();
 
-    if (q.length < 2) return [];
+    setQuery(value.toUpperCase());
 
-    return products
-      .filter((product) => {
-        return (
-          product.sku.toLowerCase().includes(q) ||
-          product.description.toLowerCase().includes(q) ||
-          (product.invoice_description || "").toLowerCase().includes(q) ||
-          (product.keywords || "").toLowerCase().includes(q)
-        );
-      })
-      .slice(0, 10);
-  }, [products, query]);
+    if (cleanValue.length < 2) {
+      setSearchResults([]);
+      return;
+    }
+
+    setSearching(true);
+
+    const { data, error } = await supabase
+      .from("products")
+      .select("id, sku, description, invoice_description, keywords")
+      .or(
+        `sku.ilike.%${cleanValue}%,description.ilike.%${cleanValue}%,invoice_description.ilike.%${cleanValue}%,keywords.ilike.%${cleanValue}%`
+      )
+      .limit(20);
+
+    setSearching(false);
+
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+
+    setSearchResults(data || []);
+  };
+
+  const refreshSearch = () => {
+    setQuery("");
+    setSearchResults([]);
+    toast.success("Buscador actualizado");
+  };
 
   const addProduct = (product: Product) => {
     const exists = items.find((item) => item.product_id === product.id);
@@ -124,6 +129,7 @@ export default function ProfitPage() {
     if (exists) {
       toast.error("Este producto ya está agregado");
       setQuery("");
+      setSearchResults([]);
       return;
     }
 
@@ -140,6 +146,8 @@ export default function ProfitPage() {
     ]);
 
     setQuery("");
+    setSearchResults([]);
+    toast.success("Producto agregado");
   };
 
   const updateItem = (
@@ -185,7 +193,7 @@ export default function ProfitPage() {
       return {
         "Fecha inicial": startDate,
         "Fecha final": endDate,
-        "Título": title,
+        Título: title,
         SKU: item.sku,
         "Producto inventario": item.description,
         "Producto factura": item.invoice_description || "",
@@ -199,7 +207,7 @@ export default function ProfitPage() {
     rows.push({
       "Fecha inicial": "",
       "Fecha final": "",
-      "Título": "",
+      Título: "",
       SKU: "",
       "Producto inventario": "TOTALES",
       "Producto factura": "",
@@ -322,6 +330,7 @@ export default function ProfitPage() {
     setTitle("");
     setItems([]);
     setQuery("");
+    setSearchResults([]);
 
     toast.success("Análisis limpiado");
   };
@@ -392,25 +401,52 @@ export default function ProfitPage() {
         </section>
 
         <section className="relative rounded-2xl bg-white p-6 shadow-lg">
-          <h2 className="text-2xl font-semibold">
-            Agregar producto del catálogo
-          </h2>
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <h2 className="text-2xl font-semibold">
+                Agregar producto del catálogo
+              </h2>
 
-          <p className="mt-1 text-sm text-slate-500">
-            Busca por SKU, producto inventario, producto factura o palabras
-            clave.
-          </p>
+              <p className="mt-1 text-sm text-slate-500">
+                Busca por SKU, producto inventario, producto factura o palabras
+                clave.
+              </p>
+            </div>
+
+            <button
+              onClick={refreshSearch}
+              className="rounded-xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+            >
+              Actualizar buscador
+            </button>
+          </div>
 
           <input
-            className="mt-5 w-full rounded-xl border border-slate-300 bg-white p-5 text-lg font-medium outline-none focus:border-black"
+            className="mt-5 w-full rounded-xl border border-slate-300 bg-white p-5 text-lg font-medium uppercase outline-none focus:border-black"
             placeholder="Buscar producto..."
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(e) => searchProducts(e.target.value)}
           />
 
-          {filteredProducts.length > 0 && (
+          {searching && (
+            <div className="mt-3 text-sm font-semibold text-slate-500">
+              Buscando productos...
+            </div>
+          )}
+
+          {query.trim().length >= 2 &&
+            !searching &&
+            searchResults.length === 0 && (
+              <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-700">
+                No se encontraron productos. Si acabas de registrarlo en
+                catálogo, vuelve a escribir el código o presiona “Actualizar
+                buscador”.
+              </div>
+            )}
+
+          {searchResults.length > 0 && (
             <div className="absolute left-6 right-6 z-20 mt-2 max-h-96 overflow-y-auto rounded-xl border border-slate-300 bg-white shadow-xl">
-              {filteredProducts.map((product) => (
+              {searchResults.map((product) => (
                 <button
                   key={product.id}
                   onClick={() => addProduct(product)}
@@ -427,6 +463,12 @@ export default function ProfitPage() {
                       {product.invoice_description && (
                         <p className="text-sm text-slate-500">
                           Factura: {product.invoice_description}
+                        </p>
+                      )}
+
+                      {product.keywords && (
+                        <p className="mt-1 text-xs text-slate-400">
+                          Keywords: {product.keywords}
                         </p>
                       )}
                     </div>
@@ -486,9 +528,7 @@ export default function ProfitPage() {
         <section className="rounded-2xl bg-white p-6 shadow-lg">
           <div className="mb-5 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div>
-              <h2 className="text-2xl font-semibold">
-                Detalle por producto
-              </h2>
+              <h2 className="text-2xl font-semibold">Detalle por producto</h2>
 
               <p className="mt-1 text-sm text-slate-500">
                 Captura manualmente compras y ventas por producto.
